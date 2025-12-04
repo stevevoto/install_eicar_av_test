@@ -1,3 +1,41 @@
+# 128T / Router EICAR AV Scheduled Testing Guide
+
+## Overview
+
+This guide explains how to install and use the **Svoto EICAR Outbound AV Test** as a **scheduled job** on a Linux host sitting behind your 128T router (or any router/firewall).
+
+The tool:
+
+- Installs a Python script that sends **EICAR test signatures** through your router to external test servers.
+- Configures a **systemd service + timer** so the test:
+  - Runs **once immediately** after install.
+  - Then runs **automatically every 12 hours** with no user interaction.
+
+Your router / firewall **should detect, log, and (ideally) block** these transmissions.
+
+> ⚠️ **Important:** Only use this on networks you own or are explicitly authorized to test.
+
+---
+
+## Components
+
+### 1. `install_eicar_av_test.sh` – One-Shot Installer
+
+- Creates the install directory:  
+  `/usr/local/eicar-av-test/`
+- Writes the main Python test script:  
+  `/usr/local/eicar-av-test/eicar_router_test.py`
+- Creates systemd units:
+
+  - `/etc/systemd/system/eicar-av-test.service`
+  - `/etc/systemd/system/eicar-av-test.timer`
+
+- Reloads systemd and enables the timer:
+
+  ```bash
+  systemctl daemon-reload
+  systemctl enable --now eicar-av-test.timer
+  systemctl start eicar-av-test.service
 
 
 
