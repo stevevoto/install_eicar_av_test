@@ -86,7 +86,7 @@ This script:
 
 Run the following commands on your Linux host:
 
-git clone https://github.com/<your-username>/<your-repo>.git
+git clone https://github.com/stevevoto/install_eicar.git
 
 cd <your-repo>
 
