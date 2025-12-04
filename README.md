@@ -1,538 +1,262 @@
-# Svoto EICAR Router AV Scheduled Testing Guide
+
+
+
+# 128T Router EICAR Antivirus Testing Guide
 
 ## Overview
+This guide helps you test the antivirus capabilities of your 128T router by sending EICAR test virus signatures through the router to external test servers. The router should detect and block these transmissions.
 
-This project installs a **scheduled EICAR outbound antivirus test** on a Linux system that sits behind your **128T router** or any router/firewall. It uses the standard **EICAR test string** to verify:
+## Test Scripts
 
-- Your router/firewall **antivirus (AV)** is inspecting outbound traffic  
-- **IDPS / security logging** is capturing and recording events  
-- Encrypted or encoded paths (HTTPS, Base64, DNS-like, WebSocket-like) are being inspected (if configured)
+### 1. **eicar_128t_test.py** - Quick 128T Test
+- Focused test for 128T routers
+- Tests HTTP, HTTPS, and encoded transmissions
+- Uses httpbin.org and postman-echo.com
+- Takes about 1 minute
 
-The setup uses:
+### 2. **eicar_outbound_test.py** - Comprehensive Outbound Test
+- Tests 8 different transmission methods
+- Includes socket-level testing
+- DNS tunneling simulation
+- WebSocket simulation
+- Takes 3-5 minutes
 
-- A one-shot installer: `install_eicar_av_test.sh`
-- A Python test script: `eicar_router_test.py`
-- A **systemd service + timer** to run the test:
-  - Once **immediately** after install
-  - Then **automatically every 12 hours** (by default)
+### 3. **eicar_webhook_test.py** - Webhook Service Test
+- Uses webhook testing services
+- Tests multiple encoding methods
+- Simulates cloud uploads
+- Most detailed results
 
-> ⚠️ **Use only on networks you own or are explicitly authorized to test.**
+## Quick Start
 
----
+```bash
+# Run the quick 128T-specific test
+python3 eicar_128t_test.py
 
-## Safety & Legal Disclaimer
+# Or run the comprehensive test
+python3 eicar_outbound_test.py
+```
 
-This tool uses the **EICAR standard antivirus test string**, not real malware. The EICAR string is designed to be:
+## How It Works
 
-- ✅ Harmless  
-- ✅ Recognized by most AV engines  
-- ✅ Intended specifically for testing AV detection  
-
-However:
-
-> This tool is provided **“AS IS”**, without warranty of any kind, express or implied.  
-> Use at your own risk.  
-> The author (**Steve Voto / Svoto**) assumes **no responsibility** for:
-> - Outages or downtime  
-> - Data loss or corruption  
-> - Security incidents or misconfigurations  
-> - Policy, compliance, or legal violations  
-> resulting from use or misuse of this tool.
-
-Do **not** run this on networks where such testing is prohibited by policy, contract, or law.
-
----
-
-## Components
-
-### 1. `install_eicar_av_test.sh` – One-Shot Installer
-
-This script:
-
-- Creates the install directory:
-
-  ```text
-  /usr/local/eicar-av-test/
-Writes the main Python script:
-
-text
-Copy code
-/usr/local/eicar-av-test/eicar_router_test.py
-Creates the systemd unit files:
-
-text
-Copy code
-/etc/systemd/system/eicar-av-test.service
-/etc/systemd/system/eicar-av-test.timer
-Reloads systemd and enables the timer:
-
-bash
-Copy code
-systemctl daemon-reload
-systemctl enable --now eicar-av-test.timer
-systemctl start eicar-av-test.service
-Result:
-
-A single immediate test run via eicar-av-test.service
-
-Recurring tests every 12 hours via eicar-av-test.timer
-
-2. eicar_router_test.py – Outbound Test Script
-This script:
-
-Sends the EICAR string using multiple methods:
-
-HTTP POST
-
-HTTP multipart upload
-
-HTTPS JSON POST
-
-Encoded payloads (Base64, Hex, URL-encoded, double-encoded)
-
-Raw socket HTTP
-
-PUT (FTP-like simulation)
-
-DNS-like tunneling patterns
-
-WebSocket-like JSON messages
-
-Prints a detailed summary of:
-
-Which tests were BLOCKED vs ALLOWED
-
-Overall detection score
-
-Recommendations for AV / IDPS configuration
-
-Supports:
-
---no-prompt for non-interactive runs (used by systemd)
-
---interval and --runs for self-looping test mode (optional)
-
-Installation & Setup
-1. Clone the Repository
-bash
-Copy code
-git clone https://github.com/<your-username>/<your-repo>.git
-cd <your-repo>
-You should see at least:
-
-install_eicar_av_test.sh
-
-2. Make the Installer Executable
-bash
-Copy code
-chmod +x install_eicar_av_test.sh
-3. Run the Installer (One Time, as Root)
-bash
-Copy code
-sudo ./install_eicar_av_test.sh
-The installer will:
-
-Create:
-
-text
-Copy code
-/usr/local/eicar-av-test/
-Install the Python test script:
-
-text
-Copy code
-/usr/local/eicar-av-test/eicar_router_test.py
-Create systemd unit files:
-
-text
-Copy code
-/etc/systemd/system/eicar-av-test.service
-/etc/systemd/system/eicar-av-test.timer
-Run:
-
-bash
-Copy code
-systemctl daemon-reload
-systemctl enable --now eicar-av-test.timer
-systemctl start eicar-av-test.service
-Outcome:
-
-One immediate test run happens right after install.
-
-Future tests run automatically every 12 hours.
-
-EICAR Test String
-The script uses the standard EICAR test string:
-
-text
-Copy code
+The scripts send the EICAR test string through your network:
+```
 X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*
-This is:
-
-Harmless – no actual malicious code
-
-Standardized – recognized test signature
-
-Designed for AV validation – the de facto way to test AV engines
-
-The script sends this string to safe testing endpoints (e.g., httpbin.org, postman-echo.com). Your router/firewall AV/IDPS should detect, block, and/or log this activity.
-
-What Gets Tested (Per Run)
-Each scheduled run of eicar_router_test.py attempts multiple outbound EICAR patterns:
-
-HTTP POST
-
-EICAR in plain HTTP form-data to public HTTP endpoints.
-
-Validates basic HTTP content inspection.
-
-HTTP Multipart Upload
-
-EICAR as an uploaded file (multipart/form-data).
-
-Simulates web file uploads.
-
-HTTPS POST
-
-EICAR in JSON over TLS.
-
-Tests whether SSL inspection / TLS decryption is functioning.
-
-Encoded Payloads
-
-Sends EICAR in:
-
-Base64
-
-Hex
-
-URL-encoded
-
-Double URL-encoded
-
-Tests deep packet inspection (DPI) capabilities.
-
-Raw Socket HTTP
-
-Crafts HTTP POST requests directly over TCP sockets with EICAR in the body.
-
-Tests detection even when traffic is not generated by a high-level HTTP client library.
-
-PUT / FTP-like Simulation
-
-Sends EICAR via HTTP PUT.
-
-Mimics file transfer style uploads or API-based file transfers.
-
-DNS-like Tunneling Simulation
-
-Encodes EICAR in hex.
-
-Splits data into DNS label-sized chunks.
-
-Attempts DNS-style lookups with encoded labels.
-
-Tests detection of suspicious DNS patterns / tunneling.
-
-WebSocket-like Simulation
-
-Sends JSON containing EICAR-like payloads with WebSocket-style upgrade headers.
-
-Tests application-level inspection beyond simple HTTP.
-
-Goal: Reveal which outbound paths your AV/IDPS is inspecting and which might be slipping through due to missing SSL decryption, incomplete DPI, or weak DNS/Socket inspection.
-
-How Often Does It Run?
-The installer creates this systemd timer:
-
-ini
-Copy code
-# /etc/systemd/system/eicar-av-test.timer
-[Unit]
-Description=Run EICAR AV test every 12 hours (Svoto lab tool)
-
-[Timer]
-OnBootSec=5min
-OnUnitActiveSec=12h
-Unit=eicar-av-test.service
-Persistent=true
-
-[Install]
-WantedBy=timers.target
-This means:
-
-First automatic run
-Occurs about 5 minutes after boot (OnBootSec=5min).
-
-Subsequent runs
-Occur 12 hours after the last run completes (OnUnitActiveSec=12h).
-
-Checking Last / Next Run
-Use:
-
-bash
-Copy code
-systemctl list-timers eicar-av-test.timer
-Example:
-
-text
-Copy code
-NEXT                        LEFT          LAST                        PASSED       UNIT                 ACTIVATES
-Mon 2025-12-08 04:00:00     11h left      Sun 2025-12-07 16:00:10     1h ago      eicar-av-test.timer  eicar-av-test.service
-LAST → time of previous test run
-
-NEXT → time of next scheduled test
-
-Viewing Test Results (Linux Host)
-All output from eicar_router_test.py is captured by systemd journal under the service unit:
-
-Show Latest Run Output
-bash
-Copy code
-sudo journalctl -u eicar-av-test.service -n 100 --no-pager
-Follow Logs in Real Time
-bash
-Copy code
-sudo journalctl -u eicar-av-test.service -f
-You’ll see:
-
-Individual test results:
-
-text
-Copy code
-HTTP POST                    : BLOCKED
-Multipart Upload             : BLOCKED
-HTTPS                        : ALLOWED
-Encoded                      : ALLOWED
-Socket                       : BLOCKED
-File Transfer                : BLOCKED
-DNS Tunnel                   : BLOCKED
-WebSocket                    : ALLOWED
-An overall detection score:
-
-text
-Copy code
-Overall Score: 5/8 transmissions blocked
-Recommendations such as:
-
-Enable HTTP content inspection
-
-Enable SSL inspection for HTTPS
-
-Ensure DPI covers encoded content
-
-Review raw socket and DNS security policies
-
-Manual Script Usage (Ad-Hoc Testing)
-Even with systemd scheduling, you can run the script manually when needed.
-
-Script Location
-Installed at:
-
-text
-Copy code
-/usr/local/eicar-av-test/eicar_router_test.py
-Run Once (Interactive)
-bash
-Copy code
-python3 /usr/local/eicar-av-test/eicar_router_test.py
-You’ll be prompted:
-
-text
-Copy code
-Press Enter to begin outbound EICAR transmission tests...
-Run Once (Non-Interactive)
-bash
-Copy code
-python3 /usr/local/eicar-av-test/eicar_router_test.py --no-prompt
-Self-Looping Mode (Without Systemd)
-If you prefer not to use systemd, the script can loop itself using --interval and --runs.
-
-Example: Every 10 Minutes, Forever
-bash
-Copy code
-python3 /usr/local/eicar-av-test/eicar_router_test.py --interval 600 --no-prompt
-Example: Every Hour, 5 Times, Then Exit
-bash
-Copy code
-python3 /usr/local/eicar-av-test/eicar_router_test.py --interval 01:00:00 --runs 5 --no-prompt
---interval accepts:
-
-A number of seconds (e.g. 600), or
-
-HH:MM:SS format (e.g. 01:00:00)
-
-Customizing the Systemd Interval
-To adjust how often the test is run by systemd:
-
-Edit the timer file:
-
-bash
-Copy code
-sudo nano /etc/systemd/system/eicar-av-test.timer
-Change:
-
-ini
-Copy code
-OnUnitActiveSec=12h
-Examples:
-
-Every 6 hours: OnUnitActiveSec=6h
-
-Every 1 hour: OnUnitActiveSec=1h
-
-Every 30 minutes: OnUnitActiveSec=30min
-
-Apply changes:
-
-bash
-Copy code
-sudo systemctl daemon-reload
-sudo systemctl restart eicar-av-test.timer
-Confirm:
-
-bash
-Copy code
-systemctl list-timers eicar-av-test.timer
-Managing the Service & Timer
-Check Service Status
-bash
-Copy code
-systemctl status eicar-av-test.service
-Check Timer Status
-bash
-Copy code
-systemctl status eicar-av-test.timer
-Manually Trigger a Test Run
-bash
-Copy code
-sudo systemctl start eicar-av-test.service
-Stop Automatic Runs (Keep Files Installed)
-bash
-Copy code
-sudo systemctl disable --now eicar-av-test.timer
-Re-Enable Automatic Runs
-bash
-Copy code
-sudo systemctl enable --now eicar-av-test.timer
-Checking 128T Router & Security Logs
-After each test run, verify that your 128T router (or equivalent security device) detects the EICAR traffic.
-
-1. Conductor GUI (128T)
+```
+
+This string is:
+- **Completely harmless** - contains no actual malware
+- **Industry standard** - recognized by all AV systems
+- **Designed for testing** - specifically for validating AV detection
+
+## What Gets Tested
+
+1. **HTTP POST** - Plain text EICAR in HTTP body
+2. **HTTPS POST** - Encrypted transmission (tests SSL inspection)
+3. **File Upload** - Multipart form upload with EICAR
+4. **Base64 Encoding** - Tests deep packet inspection
+5. **Large Payloads** - EICAR embedded in larger data
+6. **Various MIME Types** - Different content types
+7. **Multiple HTTP Methods** - POST, PUT, PATCH
+8. **Direct Socket** - Raw TCP transmission
+
+## Expected Behavior
+
+### ✅ When AV is Working:
+- Connections timeout or are reset
+- HTTP requests return error codes
+- Python shows connection errors
+- Tests show "✓ Blocked" messages
+
+### ⚠️ When AV is NOT Working:
+- HTTP requests return 200 OK
+- Data successfully transmits
+- Tests show "⚠ WARNING" messages
+- No errors in transmission
+
+## Checking 128T Router Logs
+
+### 1. Via Conductor GUI
+```
 Navigate to:
+- Monitor > Events > IDPS Events
+- Look for "EICAR" or "Test" entries
+- Check timestamp matches your test
+```
 
-Monitor → Events → IDPS Events
-
-Filter for "EICAR" or "Test"
-
-Cross-check timestamps against the test run time on the Linux host
-
-2. On the 128T Router (Linux / CLI)
-bash
-Copy code
+### 2. Via CLI on Router
+```bash
 # SSH to your 128T router
 ssh admin@<router-ip>
 
 # Check antivirus service status
 systemctl status 128t-anti-virus
 
-# Monitor antivirus logs in real time
+# View real-time logs
 sudo journalctl -u 128t-anti-virus -f
 
-# Check log files directly
+# Check log files
 sudo ls -la /var/log/128t-anti-virus/
 sudo tail -f /var/log/128t-anti-virus/anti-virus.log
-3. PCLI on 128T
-bash
-Copy code
+```
+
+### 3. Via PCLI
+```bash
 # Enter PCLI
 pcli
 
 # Show IDPS events
 show events type idps
 
-# Show security-related events
+# Show security events
 show events category security
 
 # Check signature version
 show idps signatures
-Expected Behavior
-✅ When Protection is Working
-Many or most test transmissions:
+```
 
-Are blocked, reset, or error out
+## Configuration Checklist
 
-Show connection or HTTP errors
+Ensure your 128T router has:
 
-Script output shows many BLOCKED results.
+### Service Policy Configuration
+```
+service-policy <policy-name>
+    name <policy-name>
+    service <service-name>
+    security idps-inline
+        mode inline  # Not just 'monitor'
+    exit
+exit
+```
 
-128T / firewall logs contain clear EICAR / test entries.
+### Security Settings
+```
+authority
+    router <router-name>
+        node <node-name>
+            device-interface <interface-name>
+                network-interface <network-name>
+                    source-nat true  # If needed
+                exit
+            exit
+        exit
+    exit
+exit
+```
 
-⚠️ When Protection Needs Work
-Many tests succeed with 200 OK.
+### IDP/IPS Configuration
+```
+authority
+    idps-profile <profile-name>
+        name <profile-name>
+        provider fortinet  # or your provider
+        mode inline
+        ssl-decryption enabled  # For HTTPS inspection
+    exit
+exit
+```
 
-Script shows several ALLOWED results for key vectors (HTTP, HTTPS, Encoded).
+## Troubleshooting
 
-Logs show little or no detection activity for EICAR.
+### Issue: All tests pass through (not blocked)
 
-Uninstall / Cleanup
-To fully remove the tool and its scheduled test:
+1. **Check AV Service**
+   ```bash
+   systemctl status 128t-anti-virus
+   systemctl restart 128t-anti-virus
+   ```
 
-Stop and disable the timer:
+2. **Update Signatures**
+   ```bash
+   # From PCLI
+   request idps update-signatures
+   show idps signatures
+   ```
 
-bash
-Copy code
-sudo systemctl disable --now eicar-av-test.timer
-Remove systemd units:
+3. **Verify Mode**
+   - Ensure mode is "inline" not "monitor"
+   - Monitor mode only logs, doesn't block
 
-bash
-Copy code
-sudo rm -f /etc/systemd/system/eicar-av-test.service
-sudo rm -f /etc/systemd/system/eicar-av-test.timer
-Reload systemd:
+4. **Check Session Type**
+   - Session must allow payload inspection
+   - Check service-class settings
 
-bash
-Copy code
-sudo systemctl daemon-reload
-Remove install directory and script:
+5. **SSL Inspection**
+   - Enable for HTTPS detection
+   - Configure certificate authority
 
-bash
-Copy code
-sudo rm -rf /usr/local/eicar-av-test
-Best Practices
-Test regularly – after policy changes, upgrades, or signature updates.
+### Issue: Partial blocking
 
-Verify logs, not just blocking behavior.
+- **HTTP blocked but HTTPS passes**: Enable SSL decryption
+- **Small payloads blocked, large pass**: Increase inspection buffer
+- **Some encodings pass**: Enable deep packet inspection
 
-Keep AV/IDPS signatures updated on your router/firewall.
+### Issue: No logs generated
 
-Test both HTTP and HTTPS, and any other critical protocols your network uses.
+1. Check logging level:
+   ```bash
+   # From PCLI
+   configure authority router <name> system log-level idps debug
+   ```
 
-Document your results – screenshots, logs, and summaries are useful for audits and security reviews.
+2. Verify log categories are enabled:
+   ```bash
+   show events categories
+   ```
 
-Credits & References
-Created and maintained by Steve Voto (Svoto).
+## Best Practices
 
-Uses the standard EICAR antivirus test string for AV validation.
+1. **Test Regularly**: Run tests after any configuration change
+2. **Check Logs**: Always verify detection in logs, not just blocking
+3. **Update Signatures**: Keep AV signatures current
+4. **Test All Protocols**: HTTP, HTTPS, FTP if used
+5. **Document Results**: Keep records of test results
 
-More information on the EICAR test file:
-https://www.eicar.org/download-anti-malware-testfile/
+## Understanding Results
 
-⚠️ Reminder: Only run these tests on networks where you have explicit authorization.
-These tests will generate security alerts, logs, and may notify security teams.
+### Excellent Protection (90-100% blocked)
+- Router AV properly configured
+- All major threat vectors covered
+- Continue regular testing
 
-Copy code
+### Good Protection (70-89% blocked)
+- Most threats blocked
+- Review failed tests
+- Fine-tune configuration
 
+### Needs Improvement (<70% blocked)
+- Significant gaps in protection
+- Review configuration thoroughly
+- Consider professional assistance
 
+## Support Resources
 
+- **128T Documentation**: https://docs.128technology.com/
+- **AV Configuration**: https://docs.128technology.com/docs/sec-config-antivirus/
+- **IDPS Guide**: https://docs.128technology.com/docs/idps/
+- **Community Forum**: https://community.128technology.com/
 
+## Safety Reminder
 
+⚠️ **Only test on networks you own or have permission to test**
 
+These tests will:
+- Generate security alerts
+- Create log entries
+- May notify security teams
+- Could impact performance during testing
 
+## Next Steps
 
+After testing:
+1. Review all blocked/allowed transmissions
+2. Check router logs for detection details
+3. Adjust configuration as needed
+4. Document your security posture
+5. Schedule regular retesting
 
-Extended thinking
+---
 
+**Remember**: The EICAR test string is harmless but designed to trigger AV systems. This is the industry-standard way to verify your antivirus is working correctly.
 
-
-ChatGPT can make mistakes. Check important info.
