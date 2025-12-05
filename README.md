@@ -423,3 +423,437 @@ This tool uses the standard EICAR antivirus test string to verify antivirus and 
 https://www.eicar.org/download-anti-malware-testfile/
 
 Reminder: Only run these tests on networks where you have explicit authorization. These tests will generate security alerts, logs, and may notify security teams.
+
+
+
+## 
+
+**How the Test Traffic Looks on the Wire & How AV Picks It Up**
+
+Your script always sends **the same EICAR test string**, but it wraps it in different **protocols and encodings** to exercise different AV/IDPS paths.
+
+EICAR string (payload):
+
+X5O!P%@AP\[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H\*
+
+Below is what each test is doing and how a network AV/IDPS typically sees and classifies it.
+
+* * *
+
+**1\. HTTP POST (plain form data)**
+
+**What we send**
+
+*   **Protocol:** HTTP over **TCP/80**
+*   **Direction:** Client → Internet test site (e.g. httpbin.org, postman-echo.com)
+*   **Typical wire example:**
+
+·       POST /post HTTP/1.1
+
+·       Host: httpbin.org
+
+·       User-Agent: EICAR-Test-Client
+
+·       Content-Type: application/x-www-form-urlencoded
+
+·       Content-Length: <len>
+
+·        
+
+·       file=X5O!P%@AP\[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H\*&test=eicar
+
+**How AV/IDPS detects it**
+
+*   Device sits **inline** as your default gateway / router / NGFW.
+*   It:
+
+1.  Reassembles the **TCP stream**.
+2.  Recognizes **HTTP** using its protocol parser.
+3.  Extracts the **body** (file=...) and runs it through the **signature engine**.
+4.  Sees the literal EICAR string and hits a signature like EICAR\_Test\_File.
+
+*   Classification usually shows up as:
+
+*   **Type:** Virus / Malware (Test)
+*   **Name:** EICAR, EICAR\_TEST\_FILE, etc.
+*   **Severity:** Low/Medium (because it’s a test file)
+
+*   Policy then:
+
+*   Blocks the request (drop/reset), or
+*   Allows but logs, depending on your AV/IDP policy.
+
+* * *
+
+**2\. HTTP Multipart File Upload**
+
+**What we send**
+
+*   **Protocol:** HTTP over **TCP/80**
+*   **Wire shape:** A multipart/form-data **file upload** with the EICAR string as the “file” content.
+
+·       POST /post HTTP/1.1
+
+·       Host: httpbin.org
+
+·       Content-Type: multipart/form-data; boundary=----BOUNDARY
+
+·        
+
+·       \------BOUNDARY
+
+·       Content-Disposition: form-data; name="file"; filename="eicar.txt"
+
+·       Content-Type: text/plain
+
+·        
+
+·       X5O!P%@AP\[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H\*
+
+·       \------BOUNDARY--
+
+**How AV/IDPS detects it**
+
+*   HTTP parser sees **multipart/form-data** and treats this as a **file upload**.
+*   It extracts the file payload and scans it as:
+
+*   File type: text/plain
+*   Content: the EICAR string
+
+*   Same signature match as above, but some engines explicitly log it as:
+
+*   **Category:** File upload / HTTP file transfer
+*   **Action:** “Blocked file”, “Quarantined file”, or similar.
+
+* * *
+
+**3\. HTTPS POST (encrypted)**
+
+**What we send**
+
+*   **Protocol:** HTTPS over **TCP/443**
+*   **Shape on the wire:**
+
+*   Full **TLS handshake**, then
+*   An **HTTP POST** with JSON body carrying EICAR:
+
+o   POST /post HTTP/1.1
+
+o   Host: httpbin.org
+
+o   Content-Type: application/json
+
+o    
+
+o   {"payload": "X5O!P%@AP\[4\\\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H\*", "test":"eicar\_https"}
+
+But from the outside, all of this is **encrypted** inside the TLS session.
+
+**How AV/IDPS detects it**
+
+Two cases:
+
+1.  **SSL/TLS inspection enabled**
+
+*   The device acts as a **TLS proxy / man-in-the-middle**:
+
+*   Terminates TLS from the client.
+*   Decrypts the inner HTTP.
+*   Runs the same HTTP + payload engine as in the plain HTTP tests.
+
+*   It sees the EICAR string and fires the same EICAR signature.
+*   Classification: “Virus detected in HTTPS traffic”, often with an extra tag like ssl-decrypted.
+
+3.  **No SSL inspection**
+
+*   Device only sees:
+
+*   Client IP/port, server IP/port
+*   TLS metadata (SNI, cert, ciphers)
+
+*   It **cannot see EICAR** inside the encrypted payload.
+*   No EICAR detection from content signatures; it may only do **reputation / domain-based** checks.
+*   In your test results, this usually appears as **HTTPS: ALLOWED** unless SSL inspection is turned on.
+
+* * *
+
+**4\. Encoded Payloads (Base64, Hex, URL-encoded)**
+
+**What we send**
+
+Still HTTP POST over TCP/80, but the **body is encoded**:
+
+*   **Base64:** eicar\_base64=WFNPIVAlQEFQWzRcUFpYNTQoUF4pN0NDKTd9JEVJQ0FSLVN...
+*   **Hex:** eicar\_hex=58354f2150254041505b345c505a583534285e29374343...
+*   **URL-encoded:** eicar\_url=X5O%21P%25%40AP%5B4%5CPZX54...
+*   **Double-URL-encoded:** same but encoded twice.
+
+**How AV/IDPS detects it**
+
+*   Many modern engines have **content decoders**:
+
+*   For HTTP POST/GET params, they will:
+
+*   URL-decode parameters
+*   Decode Base64 fields (if they look like data blobs)
+*   Sometimes decode hex strings in known contexts
+
+*   So they may:
+
+1.  Decode the payload back to the original EICAR bytes.
+2.  Re-run signatures on the decoded content.
+
+*   Classification:
+
+*   Same EICAR signature, often annotated as:
+
+*   “Detected after decoding” or
+*   “Encoded malware payload”.
+
+*   If decoders are **not** enabled/advanced, these may slip and show as **ALLOWED** in your test.
+
+* * *
+
+**5\. Raw Socket HTTP**
+
+**What we send**
+
+*   **Protocol:** Still HTTP over **TCP/80**, but we bypass requests and build the HTTP request by hand over a raw socket:
+
+·       POST /post HTTP/1.1
+
+·       Host: httpbin.org
+
+·       Content-Type: text/plain
+
+·       Content-Length: <len>
+
+·       Connection: close
+
+·        
+
+·       X5O!P%@AP\[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H\*
+
+**How AV/IDPS detects it**
+
+*   To the network device, this **still looks like normal HTTP**:
+
+*   IP + TCP handshake
+*   HTTP headers + body
+
+*   The AV/IDPS protocol parser doesn’t care that your **client** is low-level; it just sees HTTP semantics.
+*   It reassembles and scans body content as before → EICAR signature.
+
+This test is more about **ensuring detection isn’t tied only to “browser-like” traffic**; raw tools and scripts should be covered too.
+
+* * *
+
+**6\. HTTP PUT (FTP-like / file transfer simulation)**
+
+**What we send**
+
+*   **Protocol:** HTTP over **TCP/80**
+*   **Method:** PUT
+*   **Payload:** The EICAR string as the request body, with Content-Type: application/octet-stream.
+
+·       PUT /put HTTP/1.1
+
+·       Host: httpbin.org
+
+·       Content-Type: application/octet-stream
+
+·       Content-Length: <len>
+
+·        
+
+·       X5O!P%@AP\[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H\*
+
+**How AV/IDPS detects it**
+
+*   HTTP parser recognizes **PUT** (file upload / object update).
+*   Treats body as a generic file/stream and scans for signatures.
+*   Same EICAR detection, but some engines will tag:
+
+*   **Direction:** Upload
+*   **Method:** PUT
+*   **Application:** WebDAV / REST API / generic web file upload.
+
+This helps test AV coverage for **API/file-transfer** style traffic, not just browser form posts.
+
+* * *
+
+**7\. DNS “Tunneling” Simulation**
+
+**What we send**
+
+*   **Protocol:** DNS queries, typically over **UDP/53**
+*   **Payload shape:**
+
+*   EICAR string is hex-encoded.
+*   Split into label-length chunks (up to 63 chars).
+*   Used as a **subdomain**:
+
+o   <hex-chunk>.test.local
+
+*   Script uses socket.gethostbyname() → OS resolver → your DNS server → out to upstream (depending on your lab).
+
+**How AV/IDPS detects it**
+
+*   A pure **AV engine** usually doesn’t decode arbitrary hex back to EICAR in DNS labels.
+*   But **IDPS / DNS security** may detect:
+
+*   Suspiciously long or random-looking labels.
+*   Patterns consistent with **DNS tunneling**.
+
+*   So classification is more like:
+
+*   **Category:** DNS Tunneling / Anomaly / Suspicious DNS
+*   Not “Virus: EICAR” specifically.
+
+*   In your test:
+
+*   If DNS queries get blocked / NXDOMAIN by security filters, you’ll see BLOCKED.
+*   If they resolve or just fail normally (no security event), you may see ALLOWED but still log anomalies upstream, depending on config.
+
+* * *
+
+**8\. WebSocket-like Simulation**
+
+**What we send**
+
+*   **Protocol:** HTTP over TCP/80 with **WebSocket-style headers**, plus JSON body containing EICAR (Base64-encoded):
+
+·       POST /post HTTP/1.1
+
+·       Host: httpbin.org
+
+·       Upgrade: websocket
+
+·       Connection: Upgrade
+
+·       Content-Type: application/json
+
+·        
+
+·       {"type":"websocket\_message",
+
+·        "data":"WFNPIVAlQEFQWzRcUFpYNTQoUF4pN0NDKTd9JEVJQ0FSLVN...",
+
+·        "protocol":"ws"}
+
+*   This isn’t a full RFC-perfect WebSocket handshake, but it simulates an application sending EICAR-like content in a WebSocket-ish flow.
+
+**How AV/IDPS detects it**
+
+*   Application decoder sees HTTP with Upgrade: websocket.
+*   Many NGFW/IDPS products treat WebSocket as **“HTTP-derived”** and still:
+
+*   Parse initial HTTP headers.
+*   Inspect JSON payload (if not fully upgraded or if they can decode frames).
+
+*   It may:
+
+*   Base64-decode data, find EICAR, trigger signature.
+*   Or only see it as generic JSON if decoders are limited.
+
+This checks that **WebSocket-style traffic isn’t a blind spot**.
+
+* * *
+
+**How AV/IDPS Classifies What We Send**
+
+Across all these tests, a modern AV/IDPS typically does:
+
+1.  **Flow & Session Handling**
+
+*   Tracks TCP/UDP flows, source/destination IPs/ports, session state.
+*   Applies security policies (service policies, zones, etc.) to decide which flows to inspect.
+
+3.  **Protocol Decoding**
+
+*   Identifies application protocol: HTTP, HTTPS, DNS, WebSocket-ish, etc.
+*   Extracts relevant fields:
+
+*   HTTP headers & body
+*   Multipart file sections
+*   JSON keys/values
+*   DNS query names
+
+*   Classifies “application” (e.g., web-browsing, web services, DNS) for logging.
+
+5.  **Content Normalization & Decoding**
+
+*   Reassembles fragmented packets and TCP streams.
+*   Decodes:
+
+*   URL-encoding
+*   Base64 blobs
+*   Sometimes hex encodings, compression, or chunked encoding.
+
+*   Feeds the **normalized payload** into the signature engine.
+
+7.  **Signature Matching**
+
+*   Contains a known signature for **EICAR test string**.
+*   As soon as that byte pattern appears in the inspected content, it triggers:
+
+*   Signature ID (e.g. EICAR\_TEST\_FILE)
+*   Name, severity, category (virus/test)
+
+*   That’s what you will see in 128T / Conductor logs and AV/IDP logs.
+
+9.  **Action & Logging**
+
+*   Based on policy:
+
+*   **Inline block** – drop/ reset connection, log event.
+*   **Monitor-only** – allow traffic but log event.
+*   **Quarantine file** – in endpoint AV scenarios (less relevant here).
+
+*   Logs usually include:
+
+*   Source/destination, protocol, app
+*   Signature name (EICAR)
+*   Action (blocked/allowed)
+*   Direction (upload/download)
+
+* * *
+
+**How This Maps to the Test Summary**
+
+When the script prints:
+
+HTTP POST                    : BLOCKED
+
+Multipart Upload             : BLOCKED
+
+HTTPS                        : ALLOWED
+
+Encoded                      : ALLOWED
+
+Socket                       : BLOCKED
+
+File Transfer                : BLOCKED
+
+DNS Tunnel                   : ALLOWED
+
+WebSocket                    : ALLOWED
+
+Overall Score: 5/8 transmissions blocked
+
+You can interpret it as:
+
+*   **BLOCKED tests** → AV/IDPS is successfully decoding + scanning that protocol/encoding path.
+*   **ALLOWED tests** → either:
+
+*   AV/IDPS is not inspecting that path (e.g., no SSL inspection, encoded payload not decoded), or
+*   It’s allowed by policy (monitor-only), but you might still see a logged event.
+
+You then correlate **each test type** to:
+
+*   Transport protocol: TCP/80, TCP/443, UDP/53, TCP/80 (raw, WebSocket).
+*   Application protocol: HTTP, HTTPS, DNS, WebSocket-like.
+*   What decoders & policies need to be enabled in the 128T / NGFW config.
+
+* * *
+
