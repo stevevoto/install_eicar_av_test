@@ -430,7 +430,7 @@ Reminder: Only run these tests on networks where you have explicit authorization
 
 **How the Test Traffic Looks on the Wire & How AV Picks It Up**
 
-Your script always sends **the same EICAR test string**, but it wraps it in different **protocols and encodings** to exercise different AV/IDPS paths.
+The script always sends **the same EICAR test string**, but it wraps it in different **protocols and encodings** to exercise different AV/IDPS paths.
 
 EICAR string (payload):
 
@@ -481,7 +481,7 @@ Below is what each test is doing and how a network AV/IDPS typically sees and cl
 *   Policy then:
 
 *   Blocks the request (drop/reset), or
-*   Allows but logs, depending on your AV/IDP policy.
+*   Allows but logs, depending on the AV/IDP policy.
 
 * * *
 
@@ -573,7 +573,7 @@ Two cases:
 
 *   It **cannot see EICAR** inside the encrypted payload.
 *   No EICAR detection from content signatures; it may only do **reputation / domain-based** checks.
-*   In your test results, this usually appears as **HTTPS: ALLOWED** unless SSL inspection is turned on.
+*   In the test results, this usually appears as **HTTPS: ALLOWED** unless SSL inspection is turned on.
 
 * * *
 
@@ -641,7 +641,7 @@ Still HTTP POST over TCP/80, but the **body is encoded**:
 *   IP + TCP handshake
 *   HTTP headers + body
 
-*   The AV/IDPS protocol parser doesn’t care that your **client** is low-level; it just sees HTTP semantics.
+*   The AV/IDPS protocol parser doesn’t care that the **client** is low-level; it just sees HTTP semantics.
 *   It reassembles and scans body content as before → EICAR signature.
 
 This test is more about **ensuring detection isn’t tied only to “browser-like” traffic**; raw tools and scripts should be covered too.
@@ -800,7 +800,7 @@ Across all these tests, a modern AV/IDPS typically does:
 *   Signature ID (e.g. EICAR\_TEST\_FILE)
 *   Name, severity, category (virus/test)
 
-*   That’s what you will see in 128T / Conductor logs and AV/IDP logs.
+*   That’s what you will see in 128T / Conductor / MIST logs and AV/IDP logs.
 
 9.  **Action & Logging**
 
@@ -824,19 +824,12 @@ Across all these tests, a modern AV/IDPS typically does:
 When the script prints:
 
 HTTP POST                    : BLOCKED
-
 Multipart Upload             : BLOCKED
-
 HTTPS                        : ALLOWED
-
 Encoded                      : ALLOWED
-
 Socket                       : BLOCKED
-
 File Transfer                : BLOCKED
-
 DNS Tunnel                   : ALLOWED
-
 WebSocket                    : ALLOWED
 
 Overall Score: 5/8 transmissions blocked
