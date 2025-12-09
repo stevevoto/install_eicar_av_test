@@ -341,27 +341,17 @@ pcli
 
 **show idp application status**
 
-\====node0.020001fcaecc ========
-
- Mode:                                   spoke
-
- Engine:                                 on
-
- Pod:                                    active
-
- Engine Started:                         2025-12-04T19:09:30Z
-
- Up Time:                                2h 32m 59s
-
- Last Commit:                            2025-12-04T19:28:28Z
-
- Last:                                   starting
-
- Platform Size:                          legacy
-
- Anti Virus Scan Engine Type:            sophos-engine
-
- Anti Virus Scan Engine Information:     running
+*   \====\*\*node0.020001fcaecc\*\*========
+*    Mode:                                   spoke
+*    Engine:                                 on
+*    Pod:                                    active
+*    Engine Started:                         2025-12-04T19:09:30Z
+*    Up Time:                                2h 32m 59s
+*    Last Commit:                            2025-12-04T19:28:28Z
+*    Last:                                   starting
+*    Platform Size:                          legacy
+*    Anti Virus Scan Engine Type:            sophos-engine
+*    Anti Virus Scan Engine Information:     running
  
 **show events type idps**
 
